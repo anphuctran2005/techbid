@@ -1,5 +1,6 @@
 {
     "workbench.colorTheme": "Light 2026",
     "editor.formatOnSave": true,
-    "files.autoSave": "onFocusChange"
+    "files.autoSave": "onFocusChange",
+    "git.ignoreLimitWarning": true
 }
