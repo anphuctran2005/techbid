@@ -8,12 +8,17 @@ generator client {
 }
 
 model User {
-    id           String   @id @default(uuid())
-    email        String   @unique
+    id           String    @id @default(uuid())
+    email        String    @unique
     name         String
     passwordHash String
-    balance      BigInt   @default(20000000)
-    createdAt    DateTime @default(now())
+    balance      BigInt    @default(20000000)
+    createdAt    DateTime  @default(now())
+    auctions     Auction[] @relation("SellerAuctions")
+    wonAuction   Auction[] @relation("WinnerAuctions")
+    bids         Bid[]
+    auction      Auction?  @relation(fields: [auctionId], references: [id])
+    auctionId    String?
 }
 
 model Auction {
@@ -32,6 +37,23 @@ model Auction {
     status          AuctionStatus @default(UPCOMING)
     createdAt       DateTime      @default(now())
     updatedAt       DateTime      @updatedAt
+    users           User[]
+    seller          User          @relation("SellerAuctions", fields: [sellerId], references: [id])
+    currentWinner   User?         @relation("WinnerAuctions", fields: [currentWinnerId], references: [id])
+    bids            Bid[]
+}
+
+model Bid {
+    id        String   @id @default(uuid())
+    auctionId String
+    bidderId  String
+    amount    BigInt
+    createdAt DateTime @default(now())
+
+    auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+    bidder  User    @relation(fields: [bidderId], references: [id])
+
+    @@index([auctionId, createdAt])
 }
 
 enum AuctionStatus {
