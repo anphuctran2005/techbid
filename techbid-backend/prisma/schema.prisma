@@ -15,3 +15,34 @@ model User {
     balance      BigInt   @default(20000000)
     createdAt    DateTime @default(now())
 }
+
+model Auction {
+    id              String        @id @default(uuid())
+    title           String
+    description     String        @db.Text
+    category        String
+    condition       ItemCondition @default(LIKE_NEW_99)
+    startPrice      BigInt
+    stepPrice       BigInt
+    currentPrice    BigInt
+    sellerId        String
+    currentWinnerId String?
+    startTime       DateTime
+    endTime         DateTime
+    status          AuctionStatus @default(UPCOMING)
+    createdAt       DateTime      @default(now())
+    updatedAt       DateTime      @updatedAt
+}
+
+enum AuctionStatus {
+    UPCOMING
+    ACTIVE
+    ENDED
+    CANCELLED
+}
+
+enum ItemCondition {
+    BRAND_NEW
+    LIKE_NEW_99
+    USED_GOOD
+}
