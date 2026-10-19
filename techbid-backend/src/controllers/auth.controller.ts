@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import {prisma} from '../lib/prisma';
 import {hashPassword, comparePassword, generateToken} from '../utils/auth';
 import { registerSchema,loginSchema } from './../validations/auth.schema';
+import {AuthRequest} from '../middlewares/auth.middleware';
 
 // 1. API Đăng ký tài khoản
 export async function register(req: Request, res: Response){
@@ -96,6 +97,37 @@ export async function login(req: Request, res:Response){
         if(error.errors){
             return res.status(400).json({error: error.errors[0].message});
         }
+        return res.status(500).json({error: 'Lỗi máy chủ nội bộ'});
+    }
+}
+
+// 3. API Lấy thông tin người dùng hiện tại (Protected Route)
+export async function getMe(req: AuthRequest, res: Response){
+    try{
+        const userId= req.user?.userId;
+
+        const user = await prisma.user.findUnique({
+            where:{id:userId},
+            select:{
+                id:true,
+                email:true,
+                name: true,
+                balance:true,
+                createdAt:true,
+            },
+        });
+
+        if(!user){
+            return res.status(404).json({error:'Không tìm thấy người dùng'});
+        }
+
+        return res.json({
+            user: {
+                ...user,
+                balance: user.balance.toString(),
+            },
+        });
+    } catch (error){
         return res.status(500).json({error: 'Lỗi máy chủ nội bộ'});
     }
 }
