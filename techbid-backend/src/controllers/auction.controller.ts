@@ -1,11 +1,14 @@
-import { Response } from "express";
+import { Request, Response } from "express";
+import { ZodError } from "zod";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../middlewares/auth.middleware";
-import { createAuctionSchema } from "./../validations/auction.schema";
+import { createAuctionSchema } from "../validations/auction.schema";
 
-// 1. API Tạo phiên đấu giá mới (Dành người Người bán - Bắt buộc Đăng nhập)
+// 1. API Tạo phiên đấu giá mới (Dành cho Người bán - Bắt buộc Đăng nhập)
 export async function createAuction(req: AuthRequest, res: Response) {
   try {
+    console.log(req.body);
+
     const sellerId = req.user?.userId;
 
     if (!sellerId) {
@@ -25,14 +28,14 @@ export async function createAuction(req: AuthRequest, res: Response) {
       data: {
         title: validatedData.title,
         description: validatedData.description,
-        category: validatedData.catetory,
+        category: validatedData.category,
         condition: validatedData.condition,
         startPrice: startPriceBigInt,
         stepPrice: stepPriceBigInt,
-        currentPrice: startPriceBigInt, // Vừa tạo thì currentPrice = startPrice
+        currentPrice: startPriceBigInt,
         sellerId: sellerId,
         startTime: new Date(validatedData.startTime),
-        endTime: new DataTransfer(validatedData.endTime),
+        endTime: new Date(validatedData.endTime),
         status: "UPCOMING",
       },
     });
@@ -47,9 +50,16 @@ export async function createAuction(req: AuthRequest, res: Response) {
       },
     });
   } catch (error: any) {
-    if (error.errors) {
-      return res.status(400).json({ error: error.errors.message });
+    console.error("❌ Lỗi chi tiết tại createAuction:", error);
+
+    // 💡 SỬA TẠI ĐÂY: Dùng error.issues thay vì error.errors
+    if (error instanceof ZodError) {
+      return res.status(400).json({
+        error: "Dữ liệu gửi lên không hợp lệ",
+        details: error.issues.map((e) => e.message),
+      });
     }
+
     return res.status(500).json({ error: "Lỗi máy chủ nội bộ" });
   }
 }
@@ -66,7 +76,6 @@ export async function getAuctions(req: Request, res: Response) {
       },
     });
 
-    // Chuyển BigInt các trường tiền tệ sang String trước khi gửi về Client
     const formattedAuctions = auctions.map((a) => ({
       ...a,
       startPrice: a.startPrice.toString(),
@@ -76,6 +85,7 @@ export async function getAuctions(req: Request, res: Response) {
 
     return res.json({ auctions: formattedAuctions });
   } catch (error) {
+    console.error("❌ Lỗi chi tiết tại getAuctions:", error);
     return res.status(500).json({ error: "Lỗi máy chủ nội bộ" });
   }
 }
