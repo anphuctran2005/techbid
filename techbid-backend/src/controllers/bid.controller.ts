@@ -20,16 +20,19 @@ export async function placeBid(req: AuthRequest, res: Response) {
 
     // 3. Thực thi Transaction với Pessimistic Locking
     const result = await prisma.$transaction(async (tx) => {
-      // 3.1. KHÓA DÒNG AUCTION: SELECT ... FOR UPDATE
+      // 3.1. KHÓA DÒNG AUCTION: So sánh "id"::text = ${auctionId} để tránh xung đột kiểu dữ liệu
       const auctions: any[] = await tx.$queryRaw`
-                SELECT * FROM "Auction" WHERE id = ${auctionId} FOR UPDATE
-            `;
+        SELECT * FROM "Auction" WHERE "id"::text = ${auctionId} FOR UPDATE
+      `;
+
+      console.log("👉 Kết quả truy vấn Auction từ DB:", auctions);
 
       if (!auctions || auctions.length === 0) {
         throw new Error("AUCTION_NOT_FOUND");
       }
 
-      const auction = auctions;
+      const auction = auctions[0];
+      console.log("👉 Status thực tế của phiên là:", auction.status);
 
       // 3.2. Lấy thông tin người đặt giá để kiểm tra số dư ví
       const bidder = await tx.user.findUnique({
@@ -44,7 +47,7 @@ export async function placeBid(req: AuthRequest, res: Response) {
       const now = new Date();
 
       // Quy tắc 1: Trạng thái phải là ACTIVE
-      if (auction.status !== "ACTIVE") {
+      if (auction.status?.trim().toUpperCase() !== "ACTIVE") {
         throw new Error("AUCTION_NOT_ACTIVE");
       }
 
@@ -76,7 +79,6 @@ export async function placeBid(req: AuthRequest, res: Response) {
       }
 
       // 3.4. CẬP NHẬT DỮ LIỆU KHI TẤT CẢ ĐIỀU KIỆN ĐỀU HỢP LỆ
-      // Cập nhật giá hiện tại và người dẫn đầu của phiên đấu giá
       const updatedAuction = await tx.auction.update({
         where: { id: auctionId },
         data: {
@@ -85,7 +87,6 @@ export async function placeBid(req: AuthRequest, res: Response) {
         },
       });
 
-      // Tạo lịch sử lượt đặt giá vào bảng Bid
       const newBid = await tx.bid.create({
         data: {
           auctionId: auctionId,
@@ -107,7 +108,7 @@ export async function placeBid(req: AuthRequest, res: Response) {
       },
     });
   } catch (error: any) {
-    console.error("X Lỗi tại placeBid:", error.message || error);
+    console.error("❌ Lỗi tại placeBid:", error.message || error);
 
     // Xử lý lỗi Validate từ Zod
     if (error instanceof ZodError) {
@@ -117,7 +118,7 @@ export async function placeBid(req: AuthRequest, res: Response) {
       });
     }
 
-    // Xử lý các lỗi nghiệp vụ trong Transaction
+    // Xử lý các lỗi nghiệp vụ trong Transaction (dùng đúng biến errMessage)
     const errMessage = error.message || "";
     if (errMessage === "AUCTION_NOT_FOUND") {
       return res.status(404).json({ error: "Không tìm thấy phiên đấu giá" });
@@ -130,13 +131,13 @@ export async function placeBid(req: AuthRequest, res: Response) {
     if (errMessage === "AUCTION_ENDED") {
       return res.status(400).json({ error: "Phiên đấu giá đã hết thời gian" });
     }
-    if (errMessage.startsWith("BID_TOO_LOW")) {
-      const minRequired = errMessage.split(":")[5];
+    if (errMessage.startsWith("BID_TOO_LOW:")) {
+      const minRequired = errMessage.split(":")[1];
       return res.status(400).json({
         error: `Giá đặt quá thấp. Mức giá tối thiểu hợp lệ là ${minRequired} VNĐ`,
       });
     }
-    if (errorMessage === "SELLER_CANNOT_BID") {
+    if (errMessage === "SELLER_CANNOT_BID") {
       return res
         .status(400)
         .json({ error: "Người bán không được tự đặt giá sản phẩm của mình" });
